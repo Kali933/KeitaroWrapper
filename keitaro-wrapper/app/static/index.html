@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keitaro wrapper</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --fg: #1d2330; --muted: #7a8394; --border: #d9dde5;
+    --accent: #2563eb; --accent-fg: #fff; --danger: #c0392b; --ok: #1e8449;
+    --dirty: #fff6cc; --removed: #eef0f3;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171d; --card: #1c2029; --fg: #e6e9ef; --muted: #8b93a5; --border: #333a48;
+      --accent: #4c82f7; --danger: #ff7b6b; --ok: #58c486; --dirty: #3b3718; --removed: #262b35;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 24px; padding: 12px 24px;
+           background: var(--card); border-bottom: 1px solid var(--border); }
+  header h1 { margin: 0; font-size: 18px; }
+  .badge-mock { background: #b45309; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 12px;
+                font-weight: 700; margin-left: 6px; }
+  .tab { background: none; border: 0; padding: 8px 12px; font: inherit; color: var(--muted);
+         cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+  main { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+  section[hidden] { display: none; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+          padding: 16px 20px; margin-bottom: 16px; }
+  label { display: block; margin: 12px 0 4px; font-weight: 600; }
+  input[type=text], input[type=number] { width: 100%; padding: 8px 10px; font: inherit; color: inherit;
+         background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  .hint, .muted { color: var(--muted); font-size: 13px; }
+  button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--border);
+           background: var(--card); color: var(--fg); padding: 6px 12px; }
+  button:disabled { opacity: .5; cursor: wait; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  button.danger { color: var(--danger); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > input { flex: 1; min-width: 160px; }
+  .ac { position: relative; flex: 1; min-width: 220px; }
+  .suggest { position: absolute; z-index: 10; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 0;
+             list-style: none; max-height: 240px; overflow: auto; background: var(--card);
+             border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  .suggest li { padding: 6px 10px; cursor: pointer; }
+  .suggest li:hover { background: var(--bg); }
+  .suggest li.muted { cursor: default; }
+  .result { border-left: 4px solid var(--ok); }
+  .stream { margin-top: 16px; }
+  .stream-head { margin: 0 0 6px; }
+  .toolbar { display: flex; gap: 8px; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); }
+  table.dirty { background: var(--dirty); }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+  th { font-size: 13px; color: var(--muted); }
+  tr.removed td { background: var(--removed); color: var(--muted); }
+  td.num, th.num { width: 110px; }
+  td.act, th.act { width: 120px; text-align: right; }
+  .pin { border: 0; background: none; padding: 2px 4px; opacity: .3; }
+  .pin.on { opacity: 1; }
+  .share { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline;
+           text-decoration-style: dotted; font-weight: 600; }
+  td input[type=number] { width: 70px; padding: 3px 6px; }
+  .offers-panel { max-height: 260px; overflow: auto; }
+  .offers-panel div { padding: 2px 0; }
+  #toast { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 20; }
+  .toast { padding: 10px 14px; border-radius: 6px; color: #fff; background: var(--danger); max-width: 420px; }
+  .toast.ok { background: var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Keitaro wrapper</h1>
+  <span id="env" class="muted"></span>
+  <nav>
+    <button class="tab active" data-tab="creator">Создатель кампаний</button>
+    <button class="tab" data-tab="editor">Редактор потоков</button>
+  </nav>
+</header>
+
+<main>
+  <section id="creator">
+    <div class="card">
+      <h2 style="margin-top:0">New campaign</h2>
+      <label for="c-name">Name</label>
+      <input id="c-name" type="text" placeholder="test_фамилия_campaign1">
+      <label for="c-geo">Geo</label>
+      <input id="c-geo" type="text" placeholder="MX,AU,RO">
+      <div class="hint">Двухбуквенные коды стран через запятую: первый поток отправит эти страны на Google.</div>
+      <label>Offer</label>
+      <div id="c-offer-slot"></div>
+      <div class="hint">Поиск по ID или названию; остальной трафик пойдёт на этот оффер.</div>
+      <p><button id="c-create" class="primary">Create</button></p>
+    </div>
+    <div id="c-result"></div>
+  </section>
+
+  <section id="editor" hidden>
+    <div class="card">
+      <div class="row">
+        <input id="e-campaign" type="number" list="e-campaigns" placeholder="ID кампании в Keitaro" min="1">
+        <datalist id="e-campaigns"></datalist>
+        <button id="e-fetch" class="primary">FETCH STREAMS FROM KT</button>
+        <a id="e-view" target="_blank" rel="noopener" hidden><button type="button">VIEW IN KT</button></a>
+        <button id="e-all">SHOW ALL OFFERS</button>
+      </div>
+      <div id="e-title" class="muted" style="margin-top:8px"></div>
+      <div id="e-all-offers" class="offers-panel card" hidden></div>
+    </div>
+    <div id="streams"></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+// ---------- вспомогательное ----------
+
+const $ = (selector) => document.querySelector(selector);
+
+/** Создаёт DOM-элемент. Текст добавляется как текст (не HTML), поэтому названия офферов безопасны. */
+function h(tag, props = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (key === "class") el.className = value;
+    else if (key.startsWith("on")) el.addEventListener(key.slice(2), value);
+    else if (value === true) el.setAttribute(key, "");
+    else if (value !== false && value != null) el.setAttribute(key, value);
+  }
+  for (const child of children.flat()) {
+    if (child != null && child !== false) el.append(child);
+  }
+  return el;
+}
+
+function formatError(data, status) {
+  if (typeof data.detail === "string") return data.detail;
+  if (Array.isArray(data.detail)) return data.detail.map((item) => item.msg).join("; ");
+  return `Ошибка ${status}`;
+}
+
+async function api(method, url, body) {
+  const response = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(formatError(data, response.status));
+  return data;
+}
+
+function toast(message, kind = "error") {
+  const el = h("div", { class: `toast ${kind === "ok" ? "ok" : ""}` }, message);
+  $("#toast").append(el);
+  setTimeout(() => el.remove(), kind === "ok" ? 3000 : 6000);
+}
+
+/** Выполняет действие, блокируя кнопку на время запроса и показывая ошибку, если она случилась. */
+async function run(button, action) {
+  button.disabled = true;
+  try {
+    await action();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/** Поле с автокомплитом офферов. Принимает выбор из списка или число, введённое вручную (ID). */
+function offerPicker(placeholder) {
+  let selectedId = null;
+  let timer = null;
+  const input = h("input", { type: "text", placeholder, autocomplete: "off" });
+  const list = h("ul", { class: "suggest", hidden: true });
+
+  function select(offer) {
+    selectedId = offer.id;
+    input.value = `${offer.id} · ${offer.name}`;
+    list.hidden = true;
+  }
+
+  async function search() {
+    try {
+      const offers = await api("GET", `/api/offers?q=${encodeURIComponent(input.value)}`);
+      if (offers.length === 0) {
+        list.replaceChildren(h("li", { class: "muted" }, "Ничего не найдено среди офферов, доступных этому ключу API"));
+        list.hidden = false;
+        return;
+      }
+      list.replaceChildren(
+        ...offers.map((offer) =>
+          // mousedown, а не click: иначе поле потеряет фокус раньше, чем сработает выбор
+          h("li", { onmousedown: (event) => { event.preventDefault(); select(offer); } },
+            `${offer.id} · ${offer.name}`)
+        )
+      );
+      list.hidden = false;
+    } catch (error) {
+      list.hidden = true;
+      toast(error.message);
+    }
+  }
+
+  input.addEventListener("input", () => {
+    selectedId = null;
+    clearTimeout(timer);
+    timer = setTimeout(search, 250);
+  });
+  input.addEventListener("focus", search);
+  input.addEventListener("blur", () => setTimeout(() => (list.hidden = true), 150));
+
+  return {
+    element: h("div", { class: "ac" }, input, list),
+    offerId() {
+      if (selectedId) return selectedId;
+      const typed = input.value.trim();
+      return /^\d+$/.test(typed) ? Number(typed) : null;
+    },
+    clear() { selectedId = null; input.value = ""; },
+  };
+}
+
+// ---------- к какому Keitaro подключено приложение ----------
+
+api("GET", "/api/info").then((info) => {
+  const local = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(info.keitaro_url);
+  $("#env").append(`Keitaro: ${info.keitaro_url || "не настроен"}`);
+  if (local) $("#env").append(h("span", { class: "badge-mock" }, "MOCK"));
+}).catch(() => {});
+
+// ---------- вкладки ----------
+
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
+  $("#creator").hidden = name !== "creator";
+  $("#editor").hidden = name !== "editor";
+}
+document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
+
+// ---------- создатель кампаний ----------
+
+const creatorPicker = offerPicker("поиск по ID или названию");
+$("#c-offer-slot").append(creatorPicker.element);
+
+$("#c-create").addEventListener("click", (event) =>
+  run(event.currentTarget, async () => {
+    const offerId = creatorPicker.offerId();
+    if (!offerId) throw new Error("Выберите оффер из списка или введите его ID");
+
+    const result = await api("POST", "/api/campaigns", {
+      name: $("#c-name").value,
+      geo: $("#c-geo").value,
+      offer_id: offerId,
+    });
+
+    $("#c-result").replaceChildren(
+      h("div", { class: "card result" },
+        h("strong", {}, `Кампания создана: ${result.name} (ID ${result.kt_id})`),
+        h("div", {}, `Ссылка: ${result.url}`),
+        h("div", {}, `Гео → Google: ${result.geos.join(", ")}`),
+        h("div", {}, `Остальные → оффер ${result.offer.id} · ${result.offer.name}`),
+        h("div", { class: "row", style: "margin-top:10px" },
+          h("button", { class: "primary", onclick: () => openInEditor(result.kt_id) }, "Открыть в редакторе"),
+          h("a", { href: result.view_url, target: "_blank", rel: "noopener" }, "Открыть в Keitaro"))
+      )
+    );
+    toast("Кампания создана", "ok");
+  })
+);
+
+// ---------- редактор потоков ----------
+
+let state = null; // последнее состояние кампании, полученное от сервера
+
+function openInEditor(campaignId) {
+  $("#e-campaign").value = campaignId;
+  showTab("editor");
+  fetchCampaign($("#e-fetch"));
+}
+
+function fetchCampaign(button) {
+  return run(button, async () => {
+    const id = Number($("#e-campaign").value);
+    if (!id) throw new Error("Введите ID кампании");
+    state = await api("POST", `/api/editor/${id}/fetch`);
+    render();
+  });
+}
+
+$("#e-fetch").addEventListener("click", (event) => fetchCampaign(event.currentTarget));
+
+$("#e-campaign").addEventListener("focus", async () => {
+  try {
+    const campaigns = await api("GET", "/api/campaigns/remote");
+    $("#e-campaigns").replaceChildren(
+      ...campaigns.map((c) => h("option", { value: c.id, label: c.name }))
+    );
+  } catch (error) { /* подсказки необязательны */ }
+});
+
+$("#e-all").addEventListener("click", async (event) => {
+  const panel = $("#e-all-offers");
+  if (!panel.hidden) { panel.hidden = true; return; }
+  await run(event.currentTarget, async () => {
+    await api("POST", "/api/offers/refresh");           // свежий список из Keitaro, а не из кэша
+    const offers = await api("GET", "/api/offers?limit=1000");
+    panel.replaceChildren(
+      h("div", { class: "muted" }, `Офферов, доступных этому ключу API: ${offers.length}`),
+      ...offers.map((o) => h("div", {}, `${o.id} · ${o.name}`))
+    );
+    panel.hidden = false;
+  });
+});
+
+/** Выполняет изменение таблицы на сервере и перерисовывает её новым состоянием. */
+function mutate(button, request) {
+  return run(button, async () => {
+    state = await request();
+    render();
+  });
+}
+
+function render() {
+  $("#e-title").textContent = `${state.name} (ID ${state.kt_id})`;
+  const view = $("#e-view");
+  view.href = state.view_url;
+  view.hidden = false;
+  $("#streams").replaceChildren(...state.streams.map(renderStream));
+}
+
+function renderStream(stream) {
+  const head = h("div", { class: "stream-head" },
+    h("strong", {}, `Stream: ${stream.name}`), ` (#${stream.position}) `,
+    h("span", { class: "muted" }, `stream_id ${stream.kt_id}`));
+
+  if (!stream.has_offers) {
+    const text = stream.destination ? `Редирект на ${stream.destination}` : `Схема потока: ${stream.schema}`;
+    return h("div", { class: "stream" }, head, h("div", { class: "muted" }, text));
+  }
+
+  const toolbar = stream.dirty
+    ? h("div", { class: "toolbar" },
+        h("button", { class: "primary", onclick: (e) => {
+          const empty = stream.offers.every((row) => row.status === "removed");
+          if (empty && !confirm("В потоке не останется ни одного оффера: трафик из него никуда не пойдёт. Отправить в Keitaro?")) return;
+          mutate(e.currentTarget, () => api("POST", `/api/streams/${stream.kt_id}/push`));
+        } }, "PUSH TO KT"),
+        h("button", { onclick: (e) => mutate(e.currentTarget, () => api("POST", `/api/streams/${stream.kt_id}/cancel`)) }, "CANCEL"))
+    : null;
+
+  const table = h("table", { class: stream.dirty ? "dirty" : "" },
+    h("thead", {}, h("tr", {},
+      h("th", {}, "Offer"), h("th", { class: "num" }, "Share"),
+      h("th", {}, "Stats"), h("th", {}, "Trends"), h("th", { class: "act" }, "Actions"))),
+    h("tbody", {}, stream.offers.map((row) => renderOfferRow(stream, row))));
+
+  const picker = offerPicker("ID или название оффера");
+  const addButton = h("button", {
+    onclick: (e) => {
+      const offerId = picker.offerId();
+      if (!offerId) return toast("Выберите оффер из списка или введите его ID");
+      mutate(e.currentTarget, () => api("POST", `/api/streams/${stream.kt_id}/offers`, { offer_id: offerId }));
+    },
+  }, "ADD");
+
+  return h("div", { class: "stream" }, head, toolbar, table,
+    h("div", { class: "row", style: "margin-top:8px" }, picker.element, addButton));
+}
+
+function renderOfferRow(stream, row) {
+  const base = `/api/streams/${stream.kt_id}/offers/${row.offer_id}`;
+  const removed = row.status === "removed";
+
+  const action = removed
+    ? h("button", { onclick: (e) => mutate(e.currentTarget, () => api("POST", `${base}/restore`)) }, "BRING BACK")
+    : h("button", { class: "danger", onclick: (e) => mutate(e.currentTarget, () => api("DELETE", base)) }, "REMOVE");
+
+  return h("tr", { class: removed ? "removed" : "" },
+    h("td", {}, `${row.offer_id} · ${row.name}`, removed ? h("div", { class: "muted" }, "(removed)") : null),
+    h("td", { class: "num" }, shareCell(base, row, removed)),
+    h("td", { class: "muted" }, "—"),
+    h("td", { class: "muted" }, "—"),
+    h("td", { class: "act" }, action));
+}
+
+/** Доля оффера: клик по проценту меняет и закрепляет значение, булавка снимает или ставит закрепление. */
+function shareCell(base, row, removed) {
+  const percent = h("button", { class: "share", disabled: removed, title: "Нажмите, чтобы задать и закрепить долю" }, `${row.share}%`);
+  percent.addEventListener("click", () => {
+    const input = h("input", { type: "number", min: 0, max: 100, value: row.share });
+    let done = false;
+    const commit = () => {
+      if (done) return;
+      done = true;
+      const value = Number(input.value);
+      const unchanged = value === row.share && row.pinned;
+      if (input.value === "" || !Number.isInteger(value) || unchanged) return render();
+      mutate(input, () => api("PUT", `${base}/pin`, { share: value }));
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { done = true; render(); } });
+    input.addEventListener("blur", commit);
+    percent.replaceWith(input);
+    input.focus();
+    input.select();
+  });
+
+  const pin = h("button", {
+    class: `pin ${row.pinned ? "on" : ""}`,
+    disabled: removed,
+    title: row.pinned ? "Открепить долю" : "Закрепить текущую долю",
+    onclick: (e) => mutate(e.currentTarget, () =>
+      row.pinned ? api("DELETE", `${base}/pin`) : api("PUT", `${base}/pin`, { share: row.share })),
+  }, "📌");
+
+  return h("span", {}, percent, " ", pin);
+}
+</script>
+</body>
+</html>
